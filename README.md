@@ -32,36 +32,70 @@ The LLM must be able to extract values for radius and height from the user’s q
 ### PROGRAM:
 ```python
 import math
-import re
+import os
+from dotenv import load_dotenv, find_dotenv
+import openai
 
-def cylinder_volume(radius, height):
-    return math.pi * radius**2 * height
+_ = load_dotenv(find_dotenv())  # read local .env file
+openai.api_key = os.environ['OPENAI_API_KEY']
 
-def llm_query_to_function(query):
-    if "volume of a cylinder" in query.lower():
-        try:
-            radius_match = re.search(r"radius\s*([\d.]+)", query, re.IGNORECASE)
-            height_match = re.search(r"height\s*([\d.]+)", query, re.IGNORECASE)
-            
-            if radius_match and height_match:
-                radius = float(radius_match.group(1))
-                height = float(height_match.group(1))
-                volume = cylinder_volume(radius, height)
-                return f"The volume of the cylinder with radius {radius} units and height {height} units is {volume:.2f} cubic units."
-            else:
-                return "Sorry, I couldn't find both radius and height in the query. Please make sure to specify both."
-        except ValueError:
-            return "Sorry, I couldn't understand the values you provided. Please specify the radius and height clearly."
-    else:
-        return "I'm sorry, I can only help with calculating cylinder volumes."
+def calculate_cylinder_volume(radius, height):
+    """
+    Calculate the volume of a cylinder using the formula:
+    Volume = π * r^2 * h
+    """
+    if radius <= 0 or height <= 0:
+        return "Radius and height must be positive numbers."
+    
+    volume = math.pi * (radius ** 2) * height
+    return round(volume, 2)
 
-if __name__ == "__main__":
-    user_query = input("Please enter your query: ")
-    response = llm_query_to_function(user_query)
-    print(response)
+def chat_with_openai(prompt):
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "You are an assistant that helps calculate the volume of a cylinder."},
+            {"role": "user", "content": prompt},
+        ],
+        functions=[
+            {
+                "name": "calculate_cylinder_volume",
+                "description": "Calculate the volume of a cylinder given radius and height.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "radius": {"type": "number", "description": "Radius of the cylinder (in units)"},
+                        "height": {"type": "number", "description": "Height of the cylinder (in units)"},
+                    },
+                    "required": ["radius", "height"],
+                },
+            }
+        ],
+        function_call="auto",  
+    )
+    
+    if "function_call" in response["choices"][0]["message"]:
+        function_name = response["choices"][0]["message"]["function_call"]["name"]
+        arguments = eval(response["choices"][0]["message"]["function_call"]["arguments"])
+        if function_name == "calculate_cylinder_volume":
+            radius = arguments["radius"]
+            height = arguments["height"]
+            return calculate_cylinder_volume(radius, height)
+    
+    return response["choices"][0]["message"]["content"]
+
+
+radius = float(input("Enter the radius of the cylinder: "))
+height = float(input("Enter the height of the cylinder: "))
+
+prompt = f"What is the volume of a cylinder with a radius of {radius} and a height of {height}?"
+result = chat_with_openai(prompt)
+print("Result:", result)
+
 ``` 
 ### OUTPUT:
-![image](https://github.com/user-attachments/assets/a56226e0-f106-4a61-b577-3006869bf5bf)
+![image](https://github.com/user-attachments/assets/b45f5ac0-f956-4757-bb96-c16a79fdad4f)
+
 
 
 ### RESULT:
